@@ -3,25 +3,23 @@
 $database = new mysqli("192.168.56.56", "homestead", "secret", "bibliotheque");
 mysqli_set_charset($database, "utf8mb4");
 
-$requete = "SELECT livres.*, a.nom as auteur, g.nom as genre 
-FROM livres 
-INNER JOIN auteur a ON a.id = livres.id_auteur 
-INNER JOIN genres g ON g.id = livres.id_genre  
-WHERE livres.id = ?";
-
-// Ici je sais que je ne vais récupérer qu'un seul résultat, donc 
-// Je peux utiliser ->fetch_assoc() pour mettre le premier résultat
+// Je demande à ma BDD l'auteur dont j'ai l'id dans $_GET
+// Et j'utilise fetch_assoc() pour récupérer le premier (et seul) résultat
 // Dans un tableau associatif
-$monLivre = $database->execute_query($requete, array($_GET['id_livre']))->fetch_assoc();
+$monAuteur = $database->execute_query("SELECT * FROM auteur WHERE id = ?", array($_GET['id_auteur']))->fetch_assoc();
 
-$requeteQuiListeLesLivresDuMemeAuteur = "SELECT livres.*, a.nom as auteur, g.nom as genre 
+
+// Cette fois je ne fais pas de fetch_assoc() car je vais avoir une LISTE de livres
+// Donc plusieurs. Et $listeLivres peut déjà être donné à un foreach pour extraire chaque ligne
+$listeLivres = $database->execute_query("SELECT livres.*, a.nom as auteur, g.nom as genre  
 FROM livres 
 INNER JOIN auteur a ON a.id = livres.id_auteur 
 INNER JOIN genres g ON g.id = livres.id_genre  
-WHERE livres.id != ?  
-AND id_auteur = ? 
-ORDER BY RAND()";
-$listeLivres = $database->execute_query($requeteQuiListeLesLivresDuMemeAuteur, array($monLivre['id'], $monLivre['id_auteur']));
+WHERE id_auteur = ?", array($monAuteur['id']));
+
+function convertDate(string $dateAConvertir) :string {
+    return date('d/m/Y', strtotime($dateAConvertir));
+}
 ?>
 
 <!DOCTYPE html>
@@ -29,7 +27,7 @@ $listeLivres = $database->execute_query($requeteQuiListeLesLivresDuMemeAuteur, a
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bibliothèque - <?= $monLivre['titre'] ?></title>
+    <title>Bibliothèque - <?= $monAuteur['nom'] ?></title>
     <!-- Inclusion de Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
     <!-- Inclusion du CSS de Slick -->
@@ -42,27 +40,13 @@ $listeLivres = $database->execute_query($requeteQuiListeLesLivresDuMemeAuteur, a
     </style>
 </head>
 <body style="background-color:cadetblue;">
-    <div class="container text-center my-4">
-        <h1 class="text-center text-white my-4"><?= $monLivre['titre'] ?></h1>
-        <?php
-        // Si j'ai bien un fichier et qu'il est lisible, alors je prends l'image de la BDD
-        if(is_file($monLivre['couverture']) && is_readable($monLivre['couverture'])) {
-            $path = $monLivre['couverture'];
-        } else {
-            // Sinon je mets un "placeholder"
-            $path = "images/placeholder.jpg";
-        }
-        ?>
-        <img src="<?= $path ?>" class="img-fluid"/>
-        <h2 class="text-white mt-3 mb-2 text-center">
-            <a class="text-white text-decoration-none" href="/auteur.php?id_auteur=<?= $monLivre['id_auteur'] ?>">
-                <?= $monLivre['auteur'] ?>
-            </a> - <?= $monLivre['genre'] ?>
-        </h2>
-        <p><?= $monLivre['resume'] ?></p>
+    <div class="container">
+        <h1 class="text-white"><?= $monAuteur['nom'] ?></h1>
+        <h4><?= $monAuteur['nationalite'] ?> - <?= convertDate($monAuteur['date_naissance']) ?></h4>
+        <p><?= $monAuteur['biographie'] ?></p>
 
-        <h2 class="text-center text-white">Du même auteur</h2>
-        <div class="slider-autres-livres">
+        <h2 class="text-white">Livres de cet auteur</h2>
+        <div class="slider-livres">
             <?php
             foreach($listeLivres as $livre) {
                 ?>
@@ -85,7 +69,6 @@ $listeLivres = $database->execute_query($requeteQuiListeLesLivresDuMemeAuteur, a
             ?>
         </div>
     </div>
-
     <!-- Inclusion de jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
     <!-- Inclusion du JS de Slick -->
@@ -94,11 +77,11 @@ $listeLivres = $database->execute_query($requeteQuiListeLesLivresDuMemeAuteur, a
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
     <script type="text/javascript">
         $(function() {
-            $('.slider-autres-livres').slick({
-                infinite: true, 
+            $('.slider-livres').slick({
+                mobileFirst: true,
                 slidesToShow: 1,
                 slidesToScroll: 1,
-                mobileFirst: true,
+                infinite: true,
                 responsive: [
                     {
                         breakpoint: 768,
@@ -110,6 +93,5 @@ $listeLivres = $database->execute_query($requeteQuiListeLesLivresDuMemeAuteur, a
             });
         });
     </script>
-
 </body>
 </html>
